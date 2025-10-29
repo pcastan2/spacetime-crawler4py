@@ -1,10 +1,20 @@
 import re
-from urllib.parse import urlparse
+import os
+from urllib.parse import urlparse, urljoin, urldefrag
+from bs4 import BeautifulSoup
+
+
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
 
+ALLOWED_DOMAINS = [
+    "ics.uci.edu",
+    "cs.uci.edu",
+    "informatics.uci.edu",
+    "stat.uci.edu"
+]
 def extract_next_links(url, resp):
     # Implementation required.
     # url: the URL that was used to get the page
@@ -15,7 +25,32 @@ def extract_next_links(url, resp):
     #         resp.raw_response.url: the url, again
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-    return list()
+    compiled_links = []
+    if resp.status != 200:
+        return compiled_links
+
+    try:
+        content_type = resp.raw_response.headers.get("Content-Type", "").lower()
+        if "html" not in content_type: # html specifc to avoid images !! just as a quick note for us 
+            return []
+
+        soup_info = BeautifulSoup(resp.raw_response.content, "html.parser") # this is the return of the information which will be paresed in html
+
+        for id_tag in soup_info.find_all("a", href=True):
+            raw_href = id_tag["href"]
+
+            absolute_url = urljoin(resp.url, raw_href)
+
+            clean_url, _ = urldefrag(absolute_url)
+
+            compiled_links.append(clean_url)
+
+        return compiled_links
+
+    except Exception as e:
+        print(f"Error extracting links from {url}: {e}")
+        return []
+
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
@@ -24,6 +59,8 @@ def is_valid(url):
     try:
         parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
+            return False
+        if not any(domain in parsed.netloc for domain in ALLOWED_DOMAINS):
             return False
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
@@ -38,3 +75,39 @@ def is_valid(url):
     except TypeError:
         print ("TypeError for ", parsed)
         raise
+'''
+
+Filtering:
+- ics open lab + from terminal 
+- Honor the politeness delay for each site
+- Crawl all pages with high textual information content
+- Detect and avoid infinite traps
+- Detect and avoid sets of similar pages with no information
+- Detect and avoid dead URLs that return a 200 status but no data (click here to see what the different HTTP status codes mean Links to an external site.)
+- Detect and avoid crawling very large files, especially if they have low information value
+- Filter out invalid domains
+- Defragment
+
+
+- build parser
+- report stuff
+
+
+
+Functions:
+Extract_next_links(url, response) : “crawling” the url
+Parse the “response”
+Identify URL hyperlinks/report stuff
+Add hyperlinks to list
+Filtering:
+Defragment
+Filter out invalid domains
+Detect and avoid dead URLs that return a 200 status but no data (click here to see what the different HTTP status codes mean Links to an external site.)
+
+
+Is_valid(url) : check if link is valid
+Filtering:
+
+
+
+'''
